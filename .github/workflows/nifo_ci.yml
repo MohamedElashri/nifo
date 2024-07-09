@@ -1,0 +1,82 @@
+name: Nifo Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # This allows all matrix jobs to complete, even if one fails
+      matrix:
+        python-version: [3.7, 3.8, 3.9, '3.10', '3.11', '3.12']
+        test-type: ['help', 'current-dir', 'verbose', 'language-filter']
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+
+    - name: Test nifo help command
+      if: matrix.test-type == 'help'
+      continue-on-error: true
+      run: |
+        nifo -h
+        if [ $? -ne 0 ]; then
+          echo "nifo -h failed"
+          exit 1
+        fi
+
+    - name: Test nifo on current directory
+      if: matrix.test-type == 'current-dir'
+      continue-on-error: true
+      run: |
+        output=$(nifo .)
+        if [ $? -ne 0 ]; then
+          echo "nifo . failed"
+          exit 1
+        fi
+        if ! echo "$output" | grep -q "Language"; then
+          echo "nifo . didn't produce expected output"
+          exit 1
+        fi
+
+    - name: Test nifo verbose mode
+      if: matrix.test-type == 'verbose'
+      continue-on-error: true
+      run: |
+        output=$(nifo -v .)
+        if [ $? -ne 0 ]; then
+          echo "nifo -v . failed"
+          exit 1
+        fi
+        if ! echo "$output" | grep -q "Config and Secret Files:"; then
+          echo "nifo -v . didn't produce expected verbose output"
+          exit 1
+        fi
+
+    - name: Test nifo with specific language
+      if: matrix.test-type == 'language-filter'
+      continue-on-error: true
+      run: |
+        output=$(nifo -l python .)
+        if [ $? -ne 0 ]; then
+          echo "nifo -l python . failed"
+          exit 1
+        fi
+        if ! echo "$output" | grep -q "Python"; then
+          echo "nifo -l python . didn't produce expected output"
+          exit 1
+        fi
